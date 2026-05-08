@@ -2,13 +2,13 @@
 
 import os
 import logging
-import pantreelib as pl
-logging.basicConfig(level=logging.ERROR)
-logger = logging.getLogger()
+import PanTree.pantreelib as pl
+
+logger = logging.getLogger(__name__)
 
 def execute(args):
     if args.verbose:
-        logger.setLevel(logging.INFO)
+        logging.getLogger().setLevel(logging.INFO)
 
     if not os.path.exists(args.input_vcf):
         logger.error(f"Couldn't find input VCF '{args.input_vcf}. Exiting.'")
@@ -31,11 +31,51 @@ def execute(args):
         pairingList = []
         sampleNames = []
 
+    def get_metrics(alignment, pairingList, args):
+        results = []
+        if args.metric == 'tree':
+            tree = pl.buildTree(alignment, method=args.method)
+            totalBranchLength = tree.total_branch_length()
+            newick = pl.beautifyTree(tree)
+            distances = []
+            if args.distance:
+                for pair in pairingList:
+                    try:
+                        d = tree.distance(pair[0], pair[1]) / totalBranchLength if totalBranchLength > 0 else 0.0
+                    except:
+                        d = "-"
+                    distances.append(str(d))
+            return newick, distances
+        elif args.metric == 'p-distance':
+            dm = pl.calculatePDistance(alignment)
+            distances = []
+            if args.distance:
+                for pair in pairingList:
+                    distances.append(str(dm[pair[0], pair[1]]))
+            return "-", distances
+        elif args.metric == 'jaccard':
+            dm = pl.calculateJaccardDistance(alignment)
+            distances = []
+            if args.distance:
+                for pair in pairingList:
+                    distances.append(str(dm[pair[0]][pair[1]]))
+            return "-", distances
+        elif args.metric == 'd-stat':
+            distances = []
+            if args.quadruple:
+                p1, p2, p3, o = [x.strip() for x in args.quadruple.split(',')]
+                d = pl.calculateDStatistic(alignment, p1, p2, p3, o)
+                distances.append(str(d))
+            return "-", distances
+        return "-", []
+
     with open(args.output_tsv, 'w') as outFile:
         totalAlign = pl.initAlignment(filteredVCF, ref=args.reference)
 
         currentRow = f"Type\tChromosome\tStart\tEnd\tBP\tNewick"
-        if args.distance:
+        if args.metric == 'd-stat':
+            currentRow += f"\tD-stat({args.quadruple})"
+        elif args.distance:
             currentRow += "\t" + "\t".join([f"{a[0]}-{a[1]}" for a in pairingList])
         outFile.write(currentRow + "\n")
 
@@ -45,34 +85,24 @@ def execute(args):
             if args.compare:
                 chromosomeAlign = pl.pdToAlignment(group, args.reference)
                 totalAlign += chromosomeAlign
-                chromosomeTree = pl.buildTree(chromosomeAlign)
-                chromosomeBranchLength = chromosomeTree.total_branch_length()
-                currentRow = f"Chromosome\t{name}\t1\t{len(chromosomeAlign[0])}\t{sum([len(a.seq.replace('-', '')) for a in chromosomeAlign])}\t{pl.beautifyTree(chromosomeTree)}"
-                if args.distance:
-                    currentRow += "\t" + "\t".join(
-                        [str(chromosomeTree.distance(a[0], a[1]) / chromosomeBranchLength) for a in pairingList])
+                newick, distances = get_metrics(chromosomeAlign, pairingList, args)
+                currentRow = f"Chromosome\t{name}\t1\t{len(chromosomeAlign[0])}\t{sum([len(a.seq.replace('-', '')) for a in chromosomeAlign])}\t{newick}"
+                if distances:
+                    currentRow += "\t" + "\t".join(distances)
                 outFile.write(currentRow + "\n")
 
             for scheme in schemes:
                 schemeAlign = pl.pdToAlignment(group[scheme[0]:scheme[1]], args.reference)
-                schemeTree = pl.buildTree(schemeAlign)
-                schemeBranchLength = schemeTree.total_branch_length()
+                newick, distances = get_metrics(schemeAlign, pairingList, args)
 
-                if args.aberrant:
-                    if len([a.branch_length / schemeBranchLength for a in schemeTree.depths() if
-                            a.branch_length / schemeBranchLength >= args.aberrant]) > 0:
-                        pass
-
-                currentRow = f"Window\t{name}\t{group.POS[int(scheme[0])]}\t{group.POS[int(scheme[1]) - 1]}\t{sum([len(a.seq.replace('-', '')) for a in schemeAlign])}\t{pl.beautifyTree(schemeTree)}"
-                if args.distance:
-                    currentRow += "\t" + "\t".join([str(schemeTree.distance(a[0], a[1])/schemeBranchLength) for a in pairingList])
+                currentRow = f"Window\t{name}\t{group.POS[int(scheme[0])]}\t{group.POS[int(scheme[1]) - 1]}\t{sum([len(a.seq.replace('-', '')) for a in schemeAlign])}\t{newick}"
+                if distances:
+                    currentRow += "\t" + "\t".join(distances)
                 outFile.write(currentRow+"\n")
 
         if args.compare:
-            totalTree = pl.buildTree(totalAlign)
-            totalBranchLength = totalTree.total_branch_length()
-            currentRow = f"Full\tAll\t1\t{len(totalAlign[0])}\t{sum([len(a.seq.replace('-', '')) for a in totalAlign])}\t{pl.beautifyTree(totalTree)}"
-            if args.distance:
-                currentRow += "\t" + "\t".join(
-                    [str(totalTree.distance(a[0], a[1]) / totalBranchLength) for a in pairingList])
+            totalTree_newick, total_distances = get_metrics(totalAlign, pairingList, args)
+            currentRow = f"Full\tAll\t1\t{len(totalAlign[0])}\t{sum([len(a.seq.replace('-', '')) for a in totalAlign])}\t{totalTree_newick}"
+            if total_distances:
+                currentRow += "\t" + "\t".join(total_distances)
             outFile.write(currentRow + "\n")

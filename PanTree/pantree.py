@@ -4,9 +4,12 @@
 # Core imports:
 import argparse
 import importlib
+import logging
+
+logging.basicConfig(level=logging.ERROR, format='%(levelname)s: %(message)s')
 
 def moduleFromPath(path):
-    return path[1:].replace(".py", "").replace("/", ".")
+    return "PanTree." + path.replace(".py", "").replace("/", ".").strip(".")
 
 
 parser = argparse.ArgumentParser(description='PanTree tool for analyzing pangenomic VCFs.')
@@ -25,6 +28,9 @@ parserTrees.add_argument('-t', '--tree-file', dest='tree', type=str, help="Speci
 parserTrees.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Verbose mode', default=False)
 parserTrees.add_argument('-d', '--distance', dest='distance', type=str, help='Comma-separated list for genotypes for tip-distances. Calculate permutations between these samples. Use "All" to calculate all possible permutations.', default=None)
 parserTrees.add_argument('-a', '--aberrant_threshold', dest='aberrant', type=float, help='Weighted branch length threshold to call a branch aberrant. If not in distance mode, prints windows with aberrant branches', default=None)
+parserTrees.add_argument('--method', dest='method', type=str, choices=['nj', 'upgma'], default='nj', help='Tree construction method (nj, upgma)')
+parserTrees.add_argument('--metric', dest='metric', type=str, choices=['tree', 'p-distance', 'jaccard', 'd-stat'], default='tree', help='Distance metric to use')
+parserTrees.add_argument('--quadruple', dest='quadruple', type=str, help='Comma-separated names for ABBA-BABA test (P1,P2,P3,O)', default=None)
 
 parserHeatmap = subparsers.add_parser("heatmap", description="Generate heatmap of variant identity")
 parserHeatmap.add_argument('-i', '--input', dest='input_vcf', type=str, help='Input VCF file', required=True)

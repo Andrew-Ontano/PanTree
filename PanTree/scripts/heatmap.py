@@ -2,15 +2,15 @@
 
 import os
 import logging
-import pantreelib as pl
+import PanTree.pantreelib as pl
 import re
 import math
-logging.basicConfig(level=logging.ERROR)
-logger = logging.getLogger()
+
+logger = logging.getLogger(__name__)
 
 def execute(args):
     if args.verbose:
-        logger.setLevel(logging.INFO)
+        logging.getLogger().setLevel(logging.INFO)
 
     if not os.path.exists(args.input_vcf):
         logger.error(f"Couldn't find input VCF '{args.input_vcf}. Exiting.'")
