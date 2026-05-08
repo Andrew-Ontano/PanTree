@@ -3,15 +3,15 @@
 import os
 import logging
 import pandas as pd
-import pantreelib as pl
+import PanTree.pantreelib as pl
 import re
 import math
-logging.basicConfig(level=logging.ERROR)
-logger = logging.getLogger()
+
+logger = logging.getLogger(__name__)
 
 def execute(args):
     if args.verbose:
-        logger.setLevel(logging.INFO)
+        logging.getLogger().setLevel(logging.INFO)
 
     if not os.path.exists(args.input_vcf):
         logger.error(f"Couldn't find input VCF '{args.input_vcf}. Exiting.'")
@@ -34,16 +34,54 @@ def execute(args):
         logger.error(f"Target names ({','.join(targetList)}) not found in samples ({','.join(sampleNames)}) . Exiting.")
         exit()
 
-    if "Reference" in targetList:
-        #alleles = {a: filteredVCF[a] for a in [b for b in targetList if b != "Reference"]}
-        #alleles["Reference"] = pd.Series(["0"]*filteredVCF.shape[0])
-        #print(alleles)
-        targetLength = len(targetList)
-        for rowID, rowReport in filteredVCF.iterrows():
-            alleles = {a: rowReport[a] for a in [b for b in targetList if b != "Reference"]}
-            alleles["Reference"] = 0
-            if len(set([alleles[a] for a in alleles])) == targetLength:
-                print(rowReport)
+    with open(args.output_tsv, 'w') as outFile:
+        header = "Chrom\tStart\tEnd\t" + "\t".join(targetList) + "\t" + "\t".join([s for s in sampleNames if s not in targetList])
+        outFile.write(header + "\n")
 
-    else:
-        pass
+        for name, group in filteredVCF.groupby('#CHROM'):
+            schemes = pl.windowScheme(len(group), args.size, args.spacing)
+            group = group.reset_index().drop(columns='index')
+
+            for scheme in schemes:
+                window = group[scheme[0]:scheme[1]]
+                # Initialize tallies for this window
+                # tallies[sample][target_allele_index]
+                otherSamples = [s for s in sampleNames if s not in targetList]
+                tallies = {s: [0] * len(targetList) for s in otherSamples}
+
+                informativeSites = 0
+                for _, row in window.iterrows():
+                    # Get alleles for targets
+                    targetAlleles = []
+                    for t in targetList:
+                        if t == "Reference":
+                            targetAlleles.append("0")
+                        else:
+                            targetAlleles.append(row[t])
+
+                    # Check if all target alleles are present and distinct
+                    if "." in targetAlleles or len(set(targetAlleles)) != len(targetList):
+                        continue
+
+                    informativeSites += 1
+                    for s in otherSamples:
+                        allele = row[s]
+                        if allele in targetAlleles:
+                            tallies[s][targetAlleles.index(allele)] += 1
+
+                if informativeSites > 0:
+                    start_pos = group.POS[int(scheme[0])]
+                    end_pos = group.POS[int(scheme[1]) - 1]
+                    row_out = f"{name}\t{start_pos}\t{end_pos}"
+                    # We can't really report target alleles per window if they change,
+                    # but the requirement was "report how often other samples match each target allele"
+                    # Maybe report percentages?
+
+                    # Add dummy values for targets to match header
+                    for t in targetList:
+                        row_out += "\t-"
+
+                    for s in otherSamples:
+                        row_out += "\t" + ",".join([str(count) for count in tallies[s]])
+
+                    outFile.write(row_out + "\n")
