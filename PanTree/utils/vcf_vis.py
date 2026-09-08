@@ -37,7 +37,8 @@ def parse_valid_pairs(columns, target_samples=None):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Visualize sliding window distances with Scatter + LOESS.")
+    parser = argparse.ArgumentParser(
+        description="Visualize sliding window distances with Scatter + LOESS and Variant Density.")
     parser.add_argument("-i", "--input", required=True, help="Input TSV file from distance script.")
     parser.add_argument("-s", "--samples", type=str, help="Comma-separated list of samples to plot.")
     parser.add_argument("-f", "--frac", type=float, default=0.1,
@@ -50,7 +51,10 @@ def main():
 
     print(f"Loading data from {args.input}...")
     df = pd.read_csv(args.input, sep='\t', na_values=["NA", "TREE_ERROR"])
+
+    # Calculate position and sort to ensure fill_between draws correctly
     df['Position_Mb'] = ((df['Window_start'] + df['Window_end']) / 2) / 1_000_000
+    df = df.sort_values(by=['Chromosome', 'Position_Mb'])
 
     target_samples = args.samples.split(',') if args.samples else None
     valid_pairs = parse_valid_pairs(df.columns, target_samples)
@@ -69,23 +73,38 @@ def main():
         'd': 'Pairwise Divergence (d_xy)'
     }
 
-    # Extract the lowess smoothing function
     lowess = sm.nonparametric.lowess
 
     for chrom in chromosomes:
         df_chrom = df[df['Chromosome'] == chrom]
         print(f"Plotting {chrom}...")
 
-        for measure in measures:
-            plt.figure(figsize=(14, 6))
+        # Extract density data for the background
+        x_all = df_chrom['Position_Mb'].values
+        # Fill missing variant counts with 0 just in case
+        density = df_chrom['Variant_count'].fillna(0).values
 
-            # Create a robust color iterator from the current style's color cycle
+        for measure in measures:
+            fig, ax1 = plt.subplots(figsize=(14, 6))
+
+            # --- 1. Background Variant Density (Right Y-Axis) ---
+            ax2 = ax1.twinx()
+            # step='mid' keeps the fill blocky like genomic windows, rather than a sloped line
+            ax2.fill_between(x_all, 0, density, color='gray', alpha=0.2, step='mid', label='Variant Density')
+            ax2.set_ylabel("Variant Count per Window", color='dimgray', fontsize=11, fontweight='bold')
+            ax2.tick_params(axis='y', labelcolor='dimgray')
+            ax2.set_ylim(bottom=0)
+
+            # Fix Z-ordering so the density is drawn *behind* the lines and scatter points
+            ax1.set_zorder(ax2.get_zorder() + 1)
+            ax1.patch.set_visible(False)  # Makes ax1 transparent so ax2 is visible beneath it
+
+            # --- 2. Foreground Distance Measures (Left Y-Axis) ---
             color_cycle = itertools.cycle(plt.rcParams['axes.prop_cycle'].by_key()['color'])
 
             for pair in valid_pairs:
                 col_name = f"{pair}_{measure}"
 
-                # Extract X and Y, and drop NaNs
                 x = df_chrom['Position_Mb'].values
                 y = df_chrom[col_name].values
                 mask = ~np.isnan(x) & ~np.isnan(y)
@@ -96,25 +115,34 @@ def main():
                 if len(x_valid) == 0:
                     continue
 
-                # Get the next color robustly
                 color = next(color_cycle)
 
-                # 1. Plot the raw data as a faded scatter plot
-                plt.scatter(x_valid, y_valid, color=color, alpha=0.2, s=15, edgecolors='none')
+                # Scatter
+                ax1.scatter(x_valid, y_valid, color=color, alpha=0.2, s=15, edgecolors='none')
 
-                # 2. Calculate and plot the LOESS trendline
+                # LOESS
                 if len(x_valid) > 5:
                     smoothed = lowess(y_valid, x_valid, frac=args.frac)
-                    plt.plot(smoothed[:, 0], smoothed[:, 1], color=color, linewidth=2.5, label=pair)
+                    ax1.plot(smoothed[:, 0], smoothed[:, 1], color=color, linewidth=2.5, label=pair)
                 else:
-                    plt.plot(x_valid, y_valid, color=color, linewidth=2.5, label=pair)
+                    ax1.plot(x_valid, y_valid, color=color, linewidth=2.5, label=pair)
 
-            plt.title(f"Chromosome: {chrom} | {measure_labels[measure]}")
-            plt.xlabel("Genomic Position (Mb)")
-            plt.ylabel("Distance")
+            # Aesthetics for Primary Axis
+            ax1.set_title(f"Chromosome: {chrom} | {measure_labels[measure]}")
+            ax1.set_xlabel("Genomic Position (Mb)")
+            ax1.set_ylabel("Distance", fontsize=11, fontweight='bold')
+            ax1.grid(True, linestyle='--', alpha=0.4)
 
-            plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0., fontsize='small')
-            plt.grid(True, linestyle='--', alpha=0.5)
+            # Combine legends from both axes
+            lines1, labels1 = ax1.get_legend_handles_labels()
+            # Add an empty proxy artist for spacing in the legend, then the density label
+            from matplotlib.patches import Patch
+            lines1.append(Patch(facecolor='gray', alpha=0.2))
+            labels1.append('Variant Density')
+
+            # Move the bounding box slightly further right (1.08) to clear the right Y-axis text
+            ax1.legend(lines1, labels1, bbox_to_anchor=(1.08, 1), loc='upper left', borderaxespad=0., fontsize='small')
+
             plt.tight_layout()
 
             out_file = os.path.join(args.outdir, f"{chrom}_{measure}.{args.format}")
