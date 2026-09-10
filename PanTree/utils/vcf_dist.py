@@ -66,11 +66,9 @@ def process_window(args):
         # Filter for biallelic SNPs
         if len(variant.alts or []) != 1 or len(variant.ref) != 1 or len(variant.alts[0]) != 1:
             continue
-
         gt = parse_pysam_genotypes(variant, vcf_samples)
         if include_ref:
             gt = np.insert(gt, 0, 0.0)  # Prepend '0' for the reference
-
         gt_matrix.append(gt)
 
     vcf.close()
@@ -109,7 +107,7 @@ def process_window(args):
 
     try:
         nj_tree = constructor.nj(dm)
-
+        row_result['Total_Branch_Length'] = nj_tree.total_branch_length()
         # Get Newick string
         handle = io.StringIO()
         Phylo.write(nj_tree, handle, "newick")
@@ -126,7 +124,6 @@ def process_window(args):
             row_result[f"{s1}-{s2}_tree"] = round(patristic, 6)
             row_result[f"{s1}-{s2}_jaccard"] = round(jaccard_sq[idx1, idx2], 6)
             row_result[f"{s1}-{s2}_d"] = round(d_sq[idx1, idx2], 6)
-
     except Exception as e:
         row_result["Tree_newick"] = "TREE_ERROR"
 
@@ -159,8 +156,6 @@ def main():
     chrom_lens = {contig: record.length for contig, record in vcf.header.contigs.items()}
     vcf.close()
 
-    print(chrom_lens)
-
     # Generate window coordinates
     tasks = []
     for chrom, length in chrom_lens.items():
@@ -173,7 +168,7 @@ def main():
 
     # Prepare TSV Header
     pairs = list(itertools.combinations(active_samples, 2))
-    header = ["Chromosome", "Window_start", "Window_end", "Variant_count", "Tree_newick"]
+    header = ["Chromosome", "Window_start", "Window_end", "Variant_count", "Tree_newick", "Total_Branch_Length"]
     for s1, s2 in pairs:
         header.extend([f"{s1}-{s2}_tree", f"{s1}-{s2}_jaccard", f"{s1}-{s2}_d"])
 
