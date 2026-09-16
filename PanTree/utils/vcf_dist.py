@@ -134,7 +134,9 @@ def main():
     parser = argparse.ArgumentParser(
         description="Build NJ trees and calculate distances for windowed VCFs (pysam backend).")
     parser.add_argument("-v", "--vcf", required=True, help="Input VCF file (indexed with tabix or csi)")
-    parser.add_argument("-w", "--window", type=int, default=50000, help="Window size in bp")
+    parser.add_argument("-w", "--window", type=int, default=50000, help="Window size in bp or variants")
+    parser.add_argument("-l", "--overlap", type=int, default=0, help="Window step / slide increment (0 defaults to window size)")
+    parser.add_argument("-f", "--fixed-variants", action="store_true", help="Construct windows by fixed number of variants rather than genomic position")
     parser.add_argument("-s", "--samples", type=str, help="Comma-separated list of samples to include")
     parser.add_argument("-r", "--include-ref", action="store_true", help="Include the reference genome in comparisons")
     parser.add_argument("-o", "--output", required=True, help="Output TSV file")
@@ -156,15 +158,36 @@ def main():
     chrom_lens = {contig: record.length for contig, record in vcf.header.contigs.items()}
     vcf.close()
 
+    step = args.overlap if args.overlap > 0 else args.window
+    step = max(1, step)
+
     # Generate window coordinates
     tasks = []
-    for chrom, length in chrom_lens.items():
-        # If length is None (missing from header), skip or handle accordingly
-        if not length:
-            continue
-        for start in range(1, length + 1, args.window):
-            end = min(start + args.window - 1, length)
-            tasks.append((args.vcf, chrom, start, end, samples_list, args.include_ref))
+    if args.fixed_variants:
+        vcf = pysam.VariantFile(args.vcf)
+        for chrom in vcf.header.contigs:
+            try:
+                records = vcf.fetch(contig=chrom)
+            except ValueError:
+                continue
+            pos_list = [r.pos for r in records]
+            if not pos_list:
+                continue
+            num_vars = len(pos_list)
+            for i in range(0, num_vars, step):
+                start = pos_list[i]
+                end_idx = min(i + args.window - 1, num_vars - 1)
+                end = pos_list[end_idx]
+                tasks.append((args.vcf, chrom, start, end, samples_list, args.include_ref))
+        vcf.close()
+    else:
+        for chrom, length in chrom_lens.items():
+            # If length is None (missing from header), skip or handle accordingly
+            if not length:
+                continue
+            for start in range(1, length + 1, step):
+                end = min(start + args.window - 1, length)
+                tasks.append((args.vcf, chrom, start, end, samples_list, args.include_ref))
 
     # Prepare TSV Header
     pairs = list(itertools.combinations(active_samples, 2))
