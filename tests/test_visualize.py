@@ -22,8 +22,8 @@ class TestPantreeVisualize(unittest.TestCase):
             "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE1\tSAMPLE2\tSAMPLE3\n"
             "chr1\t100\t.\tA\tT\t.\tPASS\t.\tGT\t0/0\t0/1\t1/1\n"
-            "chr1\t200\t.\tAC\tTG\t.\tPASS\t.\tGT\t0/0\t0/0\t1/1\n"
-            "chr1\t300\t.\tA\tATT,G\t.\tPASS\t.\tGT\t0/0\t1/1\t2/2\n"
+            "chr1\t200\t.\tC\tG\t.\tPASS\t.\tGT\t0/0\t0/0\t1/1\n"
+            "chr1\t300\t.\tA\tC,G\t.\tPASS\t.\tGT\t0/0\t1/1\t2/2\n"
             "chr1\t400\t.\tC\tT\t.\tPASS\t.\tGT\t./.\t0/0\t0/1\n"
         )
         with open(cls.vcf_path, "w") as f:

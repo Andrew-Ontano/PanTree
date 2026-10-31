@@ -1,75 +1,10 @@
 import io
 import itertools
 import logging
-import tempfile
-import subprocess
-import os
 import numpy as np
 import pysam
 from Bio import Phylo
 from Bio.Phylo.TreeConstruction import DistanceMatrix, DistanceTreeConstructor
-from Bio import SeqIO
-
-
-def classify_variant(ref, alts):
-    """
-    Classify a variant as SNP, MNP, or INDEL.
-    ref: string
-    alts: list of strings (or tuple)
-    """
-    all_alleles = [ref] + list(alts)
-    ref_len = len(ref)
-    allele_lens = [len(a) for a in all_alleles]
-
-    if all(l == 1 for l in allele_lens):
-        return "SNP"
-    elif all(l == ref_len for l in allele_lens) and ref_len > 1:
-        return "MNP"
-    else:
-        return "INDEL"
-
-
-def align_alleles_with_mafft(allele_dict):
-    """
-    Given a dict mapping allele_index (0, 1, 2, ...) to sequence string,
-    run MAFFT to align them if lengths differ.
-    Returns dict mapping allele_index to aligned sequence string (with gaps '-').
-    """
-    seq_lengths = {len(seq) for seq in allele_dict.values()}
-    if len(seq_lengths) == 1:
-        # Prealigned, same length
-        return allele_dict
-
-    # Construct FASTA input safely with tempfile
-    with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.fasta') as in_f:
-        in_path = in_f.name
-        for idx, seq in allele_dict.items():
-            in_f.write(f">{idx}\n{seq}\n")
-
-    aligned_dict = {}
-    try:
-        cmd = ["mafft", "--auto", "--quiet", in_path]
-        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        if res.returncode == 0 and res.stdout:
-            handle = io.StringIO(res.stdout)
-            for record in SeqIO.parse(handle, "fasta"):
-                idx = int(record.id)
-                aligned_dict[idx] = str(record.seq).upper()
-        else:
-            # Fallback if MAFFT fails: pad right with '-'
-            max_len = max(seq_lengths)
-            for idx, seq in allele_dict.items():
-                aligned_dict[idx] = seq.ljust(max_len, '-')
-    except Exception:
-        # Fallback padding if executable not found
-        max_len = max(seq_lengths)
-        for idx, seq in allele_dict.items():
-            aligned_dict[idx] = seq.ljust(max_len, '-')
-    finally:
-        if os.path.exists(in_path):
-            os.remove(in_path)
-
-    return aligned_dict
 
 
 def parse_sample_genotypes(variant, sample_list):
@@ -95,7 +30,7 @@ def parse_sample_genotypes(variant, sample_list):
 def compute_sequence_distance(seq1, seq2):
     """
     Compute p-distance (proportion of nucleotide differences) between two aligned sequences.
-    Ignores positions where either sequence has a gap '-'.
+    Ignores positions where either sequence has a missing/gap '-'.
     """
     valid_len = 0
     diffs = 0
@@ -164,8 +99,8 @@ def process_window_task(args):
     if not records:
         return result
 
-    # Store sequence alignment components per sample: list of sequence strings for each variant
-    sample_alignments = {s: [] for s in active_samples}
+    # Store sequence alignment characters per sample: list of characters across SNP sites
+    sample_seq_chars = {s: [] for s in active_samples}
 
     # Matrices for genotype distance calculations (sample x variant)
     gt_matrix = []
@@ -177,21 +112,16 @@ def process_window_task(args):
         if not alts:
             continue
 
-        var_type = classify_variant(ref, alts)
+        # Expect supplied variants are SNPs (len(ref) == 1 and all len(alts) == 1)
+        if len(ref) != 1 or any(len(a) != 1 for a in alts):
+            continue
+
         result["Total_variants"] += 1
-        if var_type == "SNP":
-            result["Total_SNPs"] += 1
-        elif var_type == "MNP":
-            result["Total_MNPs"] += 1
-        elif var_type == "INDEL":
-            result["Total_INDELs"] += 1
+        result["Total_SNPs"] += 1
 
         allele_dict = {0: ref}
         for idx, alt in enumerate(alts, start=1):
             allele_dict[idx] = alt
-
-        aligned_alleles = align_alleles_with_mafft(allele_dict)
-        aln_len = len(next(iter(aligned_alleles.values())))
 
         gts = parse_sample_genotypes(variant, samples)
         if include_ref:
@@ -210,25 +140,19 @@ def process_window_task(args):
             allele_idx = gts[s]
             if allele_idx is not None:
                 result[f"{s}_called_sites"] += 1
-                if var_type == "SNP":
-                    result[f"{s}_snps"] += 1
-                elif var_type == "MNP":
-                    result[f"{s}_mnps"] += 1
-                elif var_type == "INDEL":
-                    result[f"{s}_indels"] += 1
+                result[f"{s}_snps"] += 1
 
                 if allele_counts.get(allele_idx, 0) == 1:
                     result[f"{s}_unique_alleles"] += 1
 
-                seq_str = aligned_alleles.get(allele_idx, "-" * aln_len)
-                sample_alignments[s].append(seq_str)
-                result[f"{s}_bp"] += len(seq_str.replace("-", ""))
+                nuc = allele_dict.get(allele_idx, '-')
+                sample_seq_chars[s].append(nuc)
+                result[f"{s}_bp"] += 1
 
                 var_gt_row.append(allele_idx)
                 var_alt_row.append(1 if allele_idx > 0 else 0)
             else:
-                seq_str = "-" * aln_len
-                sample_alignments[s].append(seq_str)
+                sample_seq_chars[s].append('-')
                 var_gt_row.append(np.nan)
                 var_alt_row.append(np.nan)
 
@@ -238,9 +162,9 @@ def process_window_task(args):
     if result["Total_variants"] == 0:
         return result
 
-    # Total window sequence alignment
-    full_sample_seqs = {s: "".join(sample_alignments[s]) for s in active_samples}
-    result["Total_bp"] = len(next(iter(full_sample_seqs.values())))
+    # Total window sequence length equals number of SNP sites
+    result["Total_bp"] = result["Total_variants"]
+    full_sample_seqs = {s: "".join(sample_seq_chars[s]) for s in active_samples}
 
     # --- 1. Compute Pairwise Jaccard and Manhattan Distances ---
     gt_arr = np.array(gt_matrix).T
@@ -318,7 +242,6 @@ def process_window_task(args):
         except Exception:
             result["Tree_newick"] = "TREE_ERROR"
     elif num_samples == 2:
-        # 2 samples: construct simple unrooted Newick string (S1:d/2, S2:d/2) and assign patristic distance
         s1, s2 = active_samples[0], active_samples[1]
         d = seq_dist_matrix[0, 1]
         half_d = round(d / 2.0, 6)
