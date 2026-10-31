@@ -13,7 +13,7 @@ Core functions:
 - Read in VCF
 - Chunk genome/chromosomes into windows (by basepair windows, variable variant count; and by variant count, variable
 window size)
-- Calculate the following across windows:
+- Calculate the following across windows and output to TSV:
   - called genotype density
 - Build sequence alignments based on alleles
   - SNPs and MNPs treated as prealigned sites

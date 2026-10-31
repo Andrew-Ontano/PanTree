@@ -35,8 +35,8 @@ def main():
     parser_vis.add_argument("-S", "--focus-samples", dest="focus", help="Comma-separated focus samples. Only pairs containing at least one are plotted.")
     parser_vis.add_argument("-f", "--frac", dest="frac", type=float, default=0.1, help="LOESS smoothing fraction (0.0 to 1.0, default: 0.1)")
     parser_vis.add_argument("--format", dest="format", default="png", choices=["png", "pdf", "svg"], help="Output image format (png, pdf, svg)")
+    parser_vis.add_argument("-k", "--no-key", dest="key", action="store_false", default=True, help="Omit comparison distances key")
     parser_vis.add_argument("-v", "--verbose", dest="verbose", action="store_true", help="Verbose step reporting mode")
-
     args = parser.parse_args()
 
     log_level = logging.DEBUG if args.verbose else logging.INFO

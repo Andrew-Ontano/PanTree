@@ -15,11 +15,11 @@ def parse_valid_pairs(columns, measure_suffix, target_samples=None, focus_sample
     """
     suffix = f"_{measure_suffix}"
     all_pair_strs = [c[:-len(suffix)] for c in columns if c.endswith(suffix)]
+
     valid_pairs = []
 
     target_set = set(target_samples) if target_samples else None
     focus_set = set(focus_samples) if focus_samples else None
-
     if not target_set and not focus_set:
         return all_pair_strs
 
@@ -35,19 +35,17 @@ def parse_valid_pairs(columns, measure_suffix, target_samples=None, focus_sample
             if target_set:
                 if s1 not in target_set or s2 not in target_set:
                     in_pool = False
-
             in_focus = True
             if focus_set:
                 if s1 not in focus_set and s2 not in focus_set:
                     in_focus = False
 
+
             if in_pool and in_focus:
                 is_valid_pair = True
                 break
-
         if is_valid_pair:
             valid_pairs.append(pair_str)
-
     return valid_pairs
 
 
@@ -96,7 +94,7 @@ def build_color_map(keys):
     return color_map
 
 
-def plot_distance(chrom, measure, measure_label, density_type, density_label, outformat, frac, outdir, valid_pairs, color_map, df_chrom, x_all, density):
+def plot_distance(chrom, measure, measure_label, density_type, density_label, outformat, frac, outdir, valid_pairs, color_map, df_chrom, x_all, density, key=True):
     fig, ax1 = plt.subplots(figsize=(14, 6))
 
     # --- 1. Background Density (Right Y-Axis) ---
@@ -147,14 +145,14 @@ def plot_distance(chrom, measure, measure_label, density_type, density_label, ou
     ax1.set_ylabel("Distance", fontsize=11, fontweight='bold')
     ax1.grid(True, linestyle='--', alpha=0.4)
 
-    # Combine legends
-    lines1, labels1 = ax1.get_legend_handles_labels()
-    from matplotlib.patches import Patch
-    lines1.append(Patch(facecolor='gray', alpha=0.2))
-    labels1.append(density_label)
+    if key:
+        # Combine legends
+        lines1, labels1 = ax1.get_legend_handles_labels()
+        from matplotlib.patches import Patch
+        lines1.append(Patch(facecolor='gray', alpha=0.2))
+        labels1.append(density_label)
 
-    ax1.legend(lines1, labels1, bbox_to_anchor=(1.08, 1), loc='upper left', borderaxespad=0., fontsize='small')
-
+        ax1.legend(lines1, labels1, bbox_to_anchor=(1.08, 1), loc='upper left', borderaxespad=0., fontsize='small')
     plt.tight_layout()
 
     out_filename = f"{chrom}_{measure}_density_{density_type}.{outformat}"
@@ -229,7 +227,6 @@ def plot_proportion(chrom, prop_type, prop_label, y_col_suffix, outformat, frac,
     plt.savefig(out_file, dpi=300, bbox_inches="tight")
     plt.close()
 
-
 def run(args):
     logging.info(f"Loading data from {args.input_tsv}...")
     os.makedirs(args.outdir, exist_ok=True)
@@ -246,7 +243,6 @@ def run(args):
     # Parse sample pairs
     all_pairs = parse_valid_pairs(df.columns, 'patristic', target_samples, focus_samples)
     pair_color_map = build_color_map(all_pairs)
-
     # Parse individual samples
     all_samples = parse_samples_from_columns(df.columns)
     active_samples = filter_samples(all_samples, target_samples, focus_samples)
@@ -276,14 +272,14 @@ def run(args):
                 chrom, measure, measure_labels[measure],
                 'variants', 'Total Variants per Window',
                 args.format, args.frac, args.outdir,
-                all_pairs, pair_color_map, df_chrom, x_all, var_density
+                all_pairs, pair_color_map, df_chrom, x_all, var_density, args.key
             )
             # Duplicate #2: Total_bp background
             plot_distance(
                 chrom, measure, measure_labels[measure],
                 'bp', 'Total Basepairs per Window',
                 args.format, args.frac, args.outdir,
-                all_pairs, pair_color_map, df_chrom, x_all, bp_density
+                all_pairs, pair_color_map, df_chrom, x_all, bp_density, args.key
             )
 
         # 2. Variant Proportion Plots
