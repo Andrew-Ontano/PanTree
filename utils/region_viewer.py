@@ -141,7 +141,7 @@ def generate_html(seqname, start, stop, genes, sample_variants, samples, output_
         genes.forEach(gene => {{
             let placed = false;
             for (let i = 0; i < geneRows.length; i++) {{
-                let overlap = geneRows[i].some(existing => 
+                let overlap = geneRows[i].some(existing =>
                     (gene.start < existing.end + 1000) && (gene.end > existing.start - 1000) // 1kb padding
                 );
                 if (!overlap) {{
@@ -187,7 +187,7 @@ def generate_html(seqname, start, stop, genes, sample_variants, samples, output_
                 if (exon.end >= start && exon.start <= stop) {{
                     const ex = scale(Math.max(start, exon.start));
                     const ew = Math.max(2, scale(Math.min(stop, exon.end)) - ex);
-                    svgContent += `<rect x="${{ex}}" y="${{rowY + 12}}" width="${{ew}}" height="16" class="${{exonClass}}" 
+                    svgContent += `<rect x="${{ex}}" y="${{rowY + 12}}" width="${{ew}}" height="16" class="${{exonClass}}"
                         onmouseover="showTooltip(event, '${{gene.id}} (${{gene.strand}})')" onmouseout="hideTooltip()"/>`;
                 }}
             }});

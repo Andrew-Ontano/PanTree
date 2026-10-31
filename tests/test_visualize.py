@@ -68,6 +68,7 @@ class TestPantreeVisualize(unittest.TestCase):
             focus = None
             frac = 0.1
             format = "png"
+            key = True
             verbose = False
 
         visualize.run(VisArgs())

@@ -21,7 +21,7 @@ PanTree requires Python 3.8+ and standard scientific bioinformatics libraries.
 Install required Python packages:
 
 ```bash
-pip install pysam biopython scipy numpy pandas statsmodels matplotlib
+pip install pysam biopython scipy numpy pandas statsmodels matplotlib seaborn gffutils
 ```
 
 Input VCF files must be bgzipped and tabix-indexed (`.vcf.gz` and `.vcf.gz.tbi`). If starting with an uncompressed VCF:
@@ -103,6 +103,7 @@ python3 pantree.py visualize \
 * `-S`, `--focus-samples`: Comma-separated focus samples. Plots only pairs containing **at least one** of these samples.
 * `-f`, `--frac`: LOESS smoothing fraction (between `0.0` and `1.0`; default: `0.1`).
 * `--format`: Output image format: `png`, `pdf`, or `svg` (default: `png`).
+* `-k`, `--no-key`: Omit the comparison distance key / legend from the plot.
 * `-v`, `--verbose`: Enable verbose logging.
 
 #### Generated Plots (per Chromosome)
@@ -118,7 +119,47 @@ python3 pantree.py visualize \
 
 ## 4. Utils
 
-Standalone and legacy utilities are preserved in `archive/utils/`:
+PanTree includes experimental and diagnostic utilities in `utils/` alongside legacy reference tools in `archive/utils/`.
+
+### Experimental & Diagnostic Utilities (`utils/`)
+
+* **`utils/cactus_clip_stats.py`**:
+  Parses and plots clipping, filtering, and sequence retention statistics from `cactus-pangenome` output logs across stages (input, clipped, filtered).
+  ```bash
+  python3 utils/cactus_clip_stats.py cactus_stats.tsv [output_prefix]
+  ```
+* **`utils/cactus_clip_stats_chrom.py`**:
+  Calculates and visualizes sequence retention percentages across stages on a per-chromosome basis.
+  ```bash
+  python3 utils/cactus_clip_stats_chrom.py chrom_stats.tsv [output_plot.png]
+  ```
+* **`utils/cactus_stats_compare.py`**:
+  Compares graph complexity metrics across multiple minigraph-cactus pangenome graph builds, contrasting edge-to-node ratios, total sequence length, and node density.
+  ```bash
+  python3 utils/cactus_stats_compare.py graphA_stats.tsv "Graph A" graphB_stats.tsv "Graph B"
+  ```
+* **`utils/mosdepth_coverage_plot.py`**:
+  Computes rolling mean smoothed read depth profiles across chromosomes using binned BED output from `mosdepth`.
+  ```bash
+  python3 utils/mosdepth_coverage_plot.py sample.regions.bed.gz [window_size] [output.png]
+  ```
+* **`utils/pangenome_feature_characterization.py`**:
+  Annotates pangenome VCF variants against GFF gene models, reconstructing sample coding sequences and outputting codon-aligned FASTA files for downstream translation and divergence analysis.
+  ```bash
+  python3 utils/pangenome_feature_characterization.py -v variants.vcf.gz -f ref.fasta -g annotations.gff -o gene_alignments/
+  ```
+* **`utils/region_viewer.py` & `utils/region_viewer2.py`**:
+  Generates interactive, self-contained HTML viewers for specified genomic windows, displaying GFF gene models, sample variant tracks, and amino acid translation alignments.
+  ```bash
+  python3 utils/region_viewer2.py -v variants.vcf.gz -f ref.fasta -g annotations.gff -c chr1 -s 100000 -e 150000 -o region_view.html
+  ```
+* **`utils/vcf_genes_to_bed.py`**:
+  Extracts gene-overlapping pangenome variants to BED format for lightweight track loading in genome browsers such as JBrowse 2.
+  ```bash
+  python3 utils/vcf_genes_to_bed.py -v variants.vcf.gz -g annotations.gff -o gene_variants.bed
+  ```
+
+### Standalone & Legacy Utilities (`archive/utils/`)
 
 * **`archive/utils/vcf_dist.py`**:
   Standalone script for computing windowed Neighbor-Joining trees and pairwise distance tables (Patristic, Jaccard, Manhattan) directly from VCF files using `pysam` and `Bio.Phylo`.

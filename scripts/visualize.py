@@ -265,6 +265,8 @@ def run(args):
         var_density = pd.to_numeric(df_chrom['Total_variants'], errors='coerce').fillna(0).values
         bp_density = pd.to_numeric(df_chrom['Total_bp'], errors='coerce').fillna(0).values
 
+        show_key = getattr(args, 'key', True)
+
         # 1. Distance Plots (in duplicate: variants background & bp background)
         for measure in measures:
             # Duplicate #1: Total_variants background
@@ -272,14 +274,14 @@ def run(args):
                 chrom, measure, measure_labels[measure],
                 'variants', 'Total Variants per Window',
                 args.format, args.frac, args.outdir,
-                all_pairs, pair_color_map, df_chrom, x_all, var_density, args.key
+                all_pairs, pair_color_map, df_chrom, x_all, var_density, show_key
             )
             # Duplicate #2: Total_bp background
             plot_distance(
                 chrom, measure, measure_labels[measure],
                 'bp', 'Total Basepairs per Window',
                 args.format, args.frac, args.outdir,
-                all_pairs, pair_color_map, df_chrom, x_all, bp_density, args.key
+                all_pairs, pair_color_map, df_chrom, x_all, bp_density, show_key
             )
 
         # 2. Variant Proportion Plots
