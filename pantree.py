@@ -2,7 +2,7 @@
 import argparse
 import sys
 import logging
-from scripts import calculate, visualize
+from scripts import calculate, visualize, local
 
 
 def main():
@@ -24,6 +24,21 @@ def main():
     parser_calc.add_argument("-t", "--threads", dest="threads", type=int, default=1, help="Computing threads")
     parser_calc.add_argument("-v", "--verbose", dest="verbose", action="store_true", help="Verbose step reporting mode")
 
+    # Subcommand: local
+    parser_local = subparsers.add_parser(
+        "local",
+        description="Calculate localized polarized sample groupings across genomic or variant windows."
+    )
+    parser_local.add_argument("-i", "--input", dest="input_vcf", required=True, help="Input VCF / VCF.gz (tabix-indexed)")
+    parser_local.add_argument("-o", "--output", dest="output_tsv", required=True, help="Output TSV file")
+    parser_local.add_argument("-s", "--samples", dest="samples", help="Sample list for comparisons (comma-separated)")
+    parser_local.add_argument("-w", "--window-size", dest="window_size", type=int, default=10000, help="Window bp or variant width")
+    parser_local.add_argument("-l", "--overlap", dest="overlap", type=int, default=0, help="Window bp or variant overlap")
+    parser_local.add_argument("-f", "--fixed-variants", dest="fixed_variants", action="store_true", help="Fixed-variant width mode instead of genomic position mode")
+    parser_local.add_argument("-r", "--include-ref", dest="include_ref", action="store_true", help="Should reference sequence be incorporated as a sample")
+    parser_local.add_argument("-t", "--threads", dest="threads", type=int, default=1, help="Computing threads")
+    parser_local.add_argument("-v", "--verbose", dest="verbose", action="store_true", help="Verbose step reporting mode")
+
     # Subcommand: visualize
     parser_vis = subparsers.add_parser(
         "visualize",
@@ -44,6 +59,8 @@ def main():
 
     if args.subcommand == "calculate":
         calculate.run(args)
+    elif args.subcommand == "local":
+        local.run(args)
     elif args.subcommand == "visualize":
         visualize.run(args)
 
