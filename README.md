@@ -6,9 +6,10 @@ PanTree is an analysis and visualization toolkit for pangenomic VCF files (such 
 
 ## 1. Synopsis
 
-PanTree operates in two primary workflows:
+PanTree operates in three primary workflows:
 1. **Calculation (`pantree.py calculate`)**: Slices indexed VCFs into sliding windows by genomic base pairs or fixed variant counts. For each window, it tallies variant counts, per-sample called sites, unique alleles, and sequence base pairs, computes pairwise distance metrics (Patristic NJ tree distance, Jaccard distance, and normalized Manhattan distance), and constructs Neighbor-Joining phylogenetic trees.
-2. **Visualization (`pantree.py visualize`)**: Ingests calculated TSV files to produce chromosome-wide scatter and LOESS smoothed trend plots for each distance metric (rendered in duplicate with variant count and basepair background densities) as well as variant occupancy and unique variant proportion profiles.
+2. **Local Groupings (`pantree.py local`)**: Slices indexed VCFs using the same windowing schemes as `calculate` to detect and quantify groupings of samples that share an allele polarizing them against all other evaluated samples in each window.
+3. **Visualization (`pantree.py visualize`)**: Ingests calculated TSV files to produce chromosome-wide scatter and LOESS smoothed trend plots for each distance metric (rendered in duplicate with variant count and basepair background densities) as well as variant occupancy and unique variant proportion profiles.
 
 ---
 
@@ -35,10 +36,10 @@ tabix -p vcf input.vcf.gz
 
 ## 3. Core Commands
 
-PanTree provides two main subroutines via `pantree.py`:
+PanTree provides three main subroutines via `pantree.py`:
 
 ```bash
-python3 pantree.py [calculate | visualize] [options]
+python3 pantree.py [calculate | local | visualize] [options]
 ```
 
 ### `calculate`
@@ -79,6 +80,53 @@ python3 pantree.py calculate \
   * `{s1}-{s2}_patristic`: Tip-to-tip phylogenetic distance derived from the window's Neighbor-Joining tree.
   * `{s1}-{s2}_jaccard`: Jaccard distance ($1 - \frac{\text{intersection}}{\text{union}}$) based on the presence of non-reference (ALT) alleles. (When `-r` is enabled, Jaccard distance is set to `NA` for comparisons involving `REF`).
   * `{s1}-{s2}_manhattan`: Manhattan distance normalized by the number of shared valid (non-missing) sites.
+
+---
+
+### `local`
+
+Identifies and quantifies sample groupings sharing polarizing alleles against other samples across genomic or fixed-variant windows.
+
+```bash
+python3 pantree.py local \
+    -i input.vcf.gz \
+    -o local_results.tsv \
+    -w 50000 \
+    -l 10000 \
+    -t 4 \
+    -v
+```
+
+#### Arguments
+* `-i`, `--input`: Input VCF or VCF.gz (tabix-indexed, required).
+* `-o`, `--output`: Destination TSV output file (required).
+* `-s`, `--samples`: Comma-separated list of sample names to include (default: all samples in VCF).
+* `-w`, `--window-size`: Window size in base pairs (or variant count if `-f` is used; default: `10000`).
+* `-l`, `--overlap`: Window overlap in base pairs or variant count (default: `0`, meaning non-overlapping adjacent windows).
+* `-f`, `--fixed-variants`: Construct windows using a fixed number of variants rather than genomic base pairs.
+* `-r`, `--include-ref`: Incorporate the reference genome (`REF` with state 0) as an active sample.
+* `-t`, `--threads`: Number of parallel worker threads/processes (default: `1`).
+* `-v`, `--verbose`: Enable verbose step reporting.
+
+#### Output Format (Long-Format TSV)
+A commented header section at the beginning of the file maps numeric IDs to corresponding sample names (e.g. `0` for `REF`, `1`..`N` for evaluated samples):
+```text
+# PanTree local: Sample ID Mapping
+# ID 0: REF
+# ID 1: SampleA
+# ID 2: SampleB
+...
+```
+Followed by tabulated columns:
+* `Chromosome`: Chromosome / contig identifier.
+* `Window_start`: Window start coordinate.
+* `Window_end`: Window end coordinate.
+* `Total_variants`: Total variant sites evaluated in the window.
+* `Called_variants`: Count of variant sites where all samples in the grouping had a called (non-missing) genotype.
+* `Group`: Comma-separated numeric sample IDs belonging to the polarizing group (e.g., `1,2`).
+* `Count`: Number of sites in the window where this grouping shares a polarizing allele.
+
+*Note*: Windows with no polarized groupings (`Count == 0`) are omitted from the output. Rows are sorted by `Chromosome`, `Window_start`, and `Group`.
 
 ---
 
