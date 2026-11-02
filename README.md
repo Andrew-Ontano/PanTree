@@ -109,12 +109,21 @@ python3 pantree.py local \
 * `-v`, `--verbose`: Enable verbose step reporting.
 
 #### Output Format (Long-Format TSV)
+A commented header section at the beginning of the file maps numeric IDs to corresponding sample names (e.g. `0` for `REF`, `1`..`N` for evaluated samples):
+```text
+# PanTree local: Sample ID Mapping
+# ID 0: REF
+# ID 1: SampleA
+# ID 2: SampleB
+...
+```
+Followed by tabulated columns:
 * `Chromosome`: Chromosome / contig identifier.
 * `Window_start`: Window start coordinate.
 * `Window_end`: Window end coordinate.
 * `Total_variants`: Total variant sites evaluated in the window.
 * `Called_variants`: Count of variant sites where all samples in the grouping had a called (non-missing) genotype.
-* `Group`: Comma-separated sample names belonging to the polarizing group.
+* `Group`: Comma-separated numeric sample IDs belonging to the polarizing group (e.g., `1,2`).
 * `Count`: Number of sites in the window where this grouping shares a polarizing allele.
 
 *Note*: Windows with no polarized groupings (`Count == 0`) are omitted from the output. Rows are sorted by `Chromosome`, `Window_start`, and `Group`.

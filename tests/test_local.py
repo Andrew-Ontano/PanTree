@@ -156,19 +156,35 @@ class TestPantreeLocal(unittest.TestCase):
         self.assertTrue(os.path.exists(out_tsv))
 
         with open(out_tsv) as f:
-            lines = [line.strip().split("\t") for line in f if line.strip()]
+            raw_lines = [line.strip() for line in f if line.strip()]
 
-        header = lines[0]
+        # Comment lines mapping IDs to samples
+        comment_lines = [l for l in raw_lines if l.startswith("#")]
+        table_lines = [l.split("\t") for l in raw_lines if not l.startswith("#")]
+
+        self.assertTrue(any("Sample ID Mapping" in l for l in comment_lines))
+        self.assertTrue(any("ID 1: SAMPLE1" in l for l in comment_lines))
+        self.assertTrue(any("ID 2: SAMPLE2" in l for l in comment_lines))
+        self.assertTrue(any("ID 3: SAMPLE3" in l for l in comment_lines))
+
+        header = table_lines[0]
         expected_header = [
             "Chromosome", "Window_start", "Window_end",
             "Total_variants", "Called_variants", "Group", "Count"
         ]
         self.assertEqual(header, expected_header)
 
-        # Check rows exist and are sorted by Chromosome, Window_start, Group
-        data_rows = lines[1:]
+        # Check rows exist and Group uses numeric IDs
+        data_rows = table_lines[1:]
         self.assertGreater(len(data_rows), 0)
-        sort_keys = [(r[0], int(r[1]), r[5]) for r in data_rows]
+        for r in data_rows:
+            group_val = r[5]
+            # Group should be comma-separated integers, e.g. "1,2" or "3"
+            ids = group_val.split(",")
+            for sample_id in ids:
+                self.assertTrue(sample_id.isdigit(), f"Expected numeric sample ID, got {sample_id}")
+
+        sort_keys = [(r[0], int(r[1]), [int(x) for x in r[5].split(",")]) for r in data_rows]
         self.assertEqual(sort_keys, sorted(sort_keys))
 
         # Check that empty chr2 windows were omitted

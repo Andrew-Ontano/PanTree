@@ -54,15 +54,41 @@ def run(args):
             res_rows = pantreelib.process_local_window_task(task)
             all_rows.extend(res_rows)
 
-    # Sorting order: Chromosome > Window_start > Group
-    all_rows.sort(key=lambda r: (r["Chromosome"], r["Window_start"], r["Group"]))
+    # Mapping samples to numeric IDs: 0 for REF, 1 for sample1, ..., N for sampleN
+    # If REF is not included, sample1..sampleN are numbered 1..N
+    sample_to_id = {}
+    id_to_sample = {}
+    if args.include_ref:
+        sample_to_id["REF"] = 0
+        id_to_sample[0] = "REF"
+        for idx, s in enumerate(samples, start=1):
+            sample_to_id[s] = idx
+            id_to_sample[idx] = s
+    else:
+        for idx, s in enumerate(samples, start=1):
+            sample_to_id[s] = idx
+            id_to_sample[idx] = s
 
-    # Write output TSV
+    # Convert Group sample names to numeric IDs in output rows
+    for row in all_rows:
+        sample_names = row["Group"].split(",")
+        id_list = [str(sample_to_id[s]) for s in sample_names if s in sample_to_id]
+        row["Group_numeric"] = ",".join(id_list)
+
+    # Sorting order: Chromosome > Window_start > Group (by numeric group / VCF order)
+    all_rows.sort(key=lambda r: (r["Chromosome"], r["Window_start"], [int(x) for x in r["Group_numeric"].split(",")]))
+
+    # Write output TSV with commented section above the table
     logging.info(f"Writing results to {args.output_tsv}...")
     with open(args.output_tsv, "w") as out_f:
+        out_f.write("# PanTree local: Sample ID Mapping\n")
+        for num_id in sorted(id_to_sample.keys()):
+            out_f.write(f"# ID {num_id}: {id_to_sample[num_id]}\n")
         out_f.write("\t".join(header) + "\n")
         for row in all_rows:
-            row_vals = [str(row.get(col, "NA")) for col in header]
+            row_dict = dict(row)
+            row_dict["Group"] = row["Group_numeric"]
+            row_vals = [str(row_dict.get(col, "NA")) for col in header]
             out_f.write("\t".join(row_vals) + "\n")
 
     logging.info("Local module execution complete!")
