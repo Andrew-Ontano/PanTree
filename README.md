@@ -68,13 +68,9 @@ python3 pantree.py calculate \
 * `-v`, `--verbose`: Enable verbose step reporting.
 
 #### Tabulated Metrics
-* **Window Summary**: `Chromosome`, `Window_start`, `Window_end`, `Total_variants`, `Total_SNPs`, `Total_MNPs`, `Total_INDELs`, `Total_bp`, and `Tree_newick`.
+* **Window Summary**: `Chromosome`, `Window_start`, `Window_end`, `Total_variants`, and `Tree_newick`.
 * **Per-Sample Metrics**:
   * `{sample}_called_sites`: Total non-missing called variant sites in the window.
-  * `{sample}_snps`: Total called SNP sites in the window.
-  * `{sample}_mnps`: Total called MNP sites in the window.
-  * `{sample}_indels`: Total called INDEL sites in the window.
-  * `{sample}_bp`: Total ungapped sequence length for the sample across the window.
   * `{sample}_unique_alleles`: Count of variants where the sample carries an allele unique among all evaluated samples.
 * **Pairwise Metrics**:
   * `{s1}-{s2}_patristic`: Tip-to-tip phylogenetic distance derived from the window's Neighbor-Joining tree.
@@ -156,9 +152,8 @@ python3 pantree.py visualize \
 * `-v`, `--verbose`: Enable verbose logging.
 
 #### Generated Plots (per Chromosome)
-1. **Distance Plots (in Duplicate)**:
-   * **`{chrom}_{metric}_density_variants.{format}`**: Pairwise distance scatter and LOESS curves plotted over background `Total_variants` density.
-   * **`{chrom}_{metric}_density_bp.{format}`**: Pairwise distance scatter and LOESS curves plotted over background `Total_bp` density.
+1. **Distance Plots**:
+   * **`{chrom}_{metric}_density.{format}`**: Pairwise distance scatter and LOESS curves plotted over background `Total_variants` density.
    * Metrics generated: `patristic`, `jaccard`, and `manhattan`.
 2. **Variant Proportion Plots**:
    * **`{chrom}_variant_occupancy.{format}`**: Sample variant occupancy (`{sample}_called_sites / Total_variants`) over `Total_variants` background density.

@@ -114,8 +114,10 @@ def build_color_map(keys):
     return color_map
 
 
-def plot_distance(chrom, measure, measure_label, density_type, density_label, outformat, frac, outdir, valid_pairs, color_map, df_chrom, x_all, density, key=True):
+def plot_distance(chrom, measure, measure_label, outformat, frac, outdir, valid_pairs, color_map, df_chrom, x_all, density, key=True):
     fig, ax1 = plt.subplots(figsize=(14, 6))
+
+    density_label = "Total Variants per Window"
 
     # --- 1. Background Density (Right Y-Axis) ---
     ax2 = ax1.twinx()
@@ -160,7 +162,7 @@ def plot_distance(chrom, measure, measure_label, density_type, density_label, ou
         else:
             ax1.plot(x_valid, y_valid, color=color, linewidth=2.5, label=pair)
 
-    ax1.set_title(f"Chromosome: {chrom} | {measure_label} ({density_label})")
+    ax1.set_title(f"Chromosome: {chrom} | {measure_label}")
     ax1.set_xlabel("Genomic Position (Mb)")
     ax1.set_ylabel("Distance", fontsize=11, fontweight='bold')
     ax1.grid(True, linestyle='--', alpha=0.4)
@@ -175,7 +177,7 @@ def plot_distance(chrom, measure, measure_label, density_type, density_label, ou
         ax1.legend(lines1, labels1, bbox_to_anchor=(1.08, 1), loc='upper left', borderaxespad=0., fontsize='small')
     plt.tight_layout()
 
-    out_filename = f"{chrom}_{measure}_density_{density_type}.{outformat}"
+    out_filename = f"{chrom}_{measure}_density.{outformat}"
     out_file = os.path.join(outdir, out_filename)
     plt.savefig(out_file, dpi=300, bbox_inches="tight")
     plt.close()
@@ -285,25 +287,15 @@ def run(args):
 
         x_all = df_chrom['Position_Mb'].values
         var_density = pd.to_numeric(df_chrom['Total_variants'], errors='coerce').fillna(0).values
-        bp_density = pd.to_numeric(df_chrom['Total_bp'], errors='coerce').fillna(0).values
 
         show_key = getattr(args, 'key', True)
 
-        # 1. Distance Plots (in duplicate: variants background & bp background)
+        # 1. Distance Plots (Total_variants background)
         for measure in measures:
-            # Duplicate #1: Total_variants background
             plot_distance(
                 chrom, measure, measure_labels[measure],
-                'variants', 'Total Variants per Window',
                 args.format, args.frac, args.outdir,
                 all_pairs, pair_color_map, df_chrom, x_all, var_density, show_key
-            )
-            # Duplicate #2: Total_bp background
-            plot_distance(
-                chrom, measure, measure_labels[measure],
-                'bp', 'Total Basepairs per Window',
-                args.format, args.frac, args.outdir,
-                all_pairs, pair_color_map, df_chrom, x_all, bp_density, show_key
             )
 
         # 2. Variant Proportion Plots

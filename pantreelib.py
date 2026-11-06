@@ -67,20 +67,12 @@ def process_window_task(args):
         "Window_start": start,
         "Window_end": end,
         "Total_variants": 0,
-        "Total_SNPs": 0,
-        "Total_MNPs": 0,
-        "Total_INDELs": 0,
-        "Total_bp": 0,
         "Tree_newick": "NA"
     }
 
     # Initialize sample-specific fields
     for s in active_samples:
         result[f"{s}_called_sites"] = 0
-        result[f"{s}_snps"] = 0
-        result[f"{s}_mnps"] = 0
-        result[f"{s}_indels"] = 0
-        result[f"{s}_bp"] = 0
         result[f"{s}_unique_alleles"] = 0
 
     pairs = list(itertools.combinations(active_samples, 2))
@@ -117,7 +109,6 @@ def process_window_task(args):
             continue
 
         result["Total_variants"] += 1
-        result["Total_SNPs"] += 1
 
         allele_dict = {0: ref}
         for idx, alt in enumerate(alts, start=1):
@@ -140,14 +131,12 @@ def process_window_task(args):
             allele_idx = gts[s]
             if allele_idx is not None:
                 result[f"{s}_called_sites"] += 1
-                result[f"{s}_snps"] += 1
 
                 if allele_counts.get(allele_idx, 0) == 1:
                     result[f"{s}_unique_alleles"] += 1
 
                 nuc = allele_dict.get(allele_idx, '-')
                 sample_seq_chars[s].append(nuc)
-                result[f"{s}_bp"] += 1
 
                 var_gt_row.append(allele_idx)
                 var_alt_row.append(1 if allele_idx > 0 else 0)
@@ -162,8 +151,6 @@ def process_window_task(args):
     if result["Total_variants"] == 0:
         return result
 
-    # Total window sequence length equals number of SNP sites
-    result["Total_bp"] = result["Total_variants"]
     full_sample_seqs = {s: "".join(sample_seq_chars[s]) for s in active_samples}
 
     # --- 1. Compute Pairwise Jaccard and Manhattan Distances ---

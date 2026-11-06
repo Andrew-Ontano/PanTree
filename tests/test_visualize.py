@@ -76,18 +76,14 @@ class TestPantreeVisualize(unittest.TestCase):
 
         files = os.listdir(self.plots_dir)
         expected_files = [
-            "chr1_patristic_density_variants.png",
-            "chr1_patristic_density_bp.png",
-            "chr1_jaccard_density_variants.png",
-            "chr1_jaccard_density_bp.png",
-            "chr1_manhattan_density_variants.png",
-            "chr1_manhattan_density_bp.png",
+            "chr1_patristic_density.png",
+            "chr1_jaccard_density.png",
+            "chr1_manhattan_density.png",
             "chr1_variant_occupancy.png",
             "chr1_unique_variants_proportion.png"
         ]
 
-        for expected in expected_files:
-            self.assertIn(expected, files)
+        self.assertEqual(set(files), set(expected_files))
 
     def test_parse_valid_pairs_with_target_focus(self):
         columns = [
@@ -143,7 +139,7 @@ class TestPantreeVisualize(unittest.TestCase):
         visualize.run(VisSTArgs())
         self.assertTrue(os.path.exists(plots_st_dir))
         files = os.listdir(plots_st_dir)
-        self.assertIn("chr1_manhattan_density_variants.png", files)
+        self.assertIn("chr1_manhattan_density.png", files)
 
 
 if __name__ == "__main__":
