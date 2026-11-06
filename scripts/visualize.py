@@ -7,11 +7,13 @@ import matplotlib.pyplot as plt
 import statsmodels.api as sm
 
 
-def parse_valid_pairs(columns, measure_suffix, target_samples=None, focus_samples=None):
+def parse_valid_pairs(columns, measure_suffix, target_samples=None, focus_samples=None, target_focus_samples=None):
     """
     Extracts valid pair strings from DataFrame columns ending with `_{measure_suffix}`.
     target_samples (-s): BOTH samples must be in this list.
-    focus_samples (-S): AT LEAST ONE sample must be in this list.
+    focus_samples (-S):
+        - If target_focus_samples (-T) is also provided: ONE sample must be in -S and the OTHER in -T.
+        - If target_focus_samples (-T) is NOT provided: AT LEAST ONE sample must be in -S.
     """
     suffix = f"_{measure_suffix}"
     all_pair_strs = [c[:-len(suffix)] for c in columns if c.endswith(suffix)]
@@ -20,7 +22,9 @@ def parse_valid_pairs(columns, measure_suffix, target_samples=None, focus_sample
 
     target_set = set(target_samples) if target_samples else None
     focus_set = set(focus_samples) if focus_samples else None
-    if not target_set and not focus_set:
+    target_focus_set = set(target_focus_samples) if target_focus_samples else None
+
+    if not target_set and not focus_set and not target_focus_set:
         return all_pair_strs
 
     for pair_str in all_pair_strs:
@@ -35,11 +39,18 @@ def parse_valid_pairs(columns, measure_suffix, target_samples=None, focus_sample
             if target_set:
                 if s1 not in target_set or s2 not in target_set:
                     in_pool = False
+
             in_focus = True
-            if focus_set:
+            if focus_set and target_focus_set:
+                matches_s_t = (s1 in focus_set and s2 in target_focus_set) or (s2 in focus_set and s1 in target_focus_set)
+                if not matches_s_t:
+                    in_focus = False
+            elif focus_set:
                 if s1 not in focus_set and s2 not in focus_set:
                     in_focus = False
-
+            elif target_focus_set:
+                if s1 not in target_focus_set and s2 not in target_focus_set:
+                    in_focus = False
 
             if in_pool and in_focus:
                 is_valid_pair = True
@@ -62,21 +73,30 @@ def parse_samples_from_columns(columns):
     return samples
 
 
-def filter_samples(all_samples, target_samples=None, focus_samples=None):
+def filter_samples(all_samples, target_samples=None, focus_samples=None, target_focus_samples=None):
     """
-    Filter individual samples based on target (-s) or focus (-S) sample lists.
+    Filter individual samples based on target (-s), focus (-S), or target-focus (-T) sample lists.
     """
     target_set = set(target_samples) if target_samples else None
     focus_set = set(focus_samples) if focus_samples else None
+    target_focus_set = set(target_focus_samples) if target_focus_samples else None
 
-    if not target_set and not focus_set:
+    combined_focus = None
+    if focus_set and target_focus_set:
+        combined_focus = focus_set | target_focus_set
+    elif focus_set:
+        combined_focus = focus_set
+    elif target_focus_set:
+        combined_focus = target_focus_set
+
+    if not target_set and not combined_focus:
         return all_samples
 
     filtered = []
     for s in all_samples:
         if target_set and s not in target_set:
             continue
-        if focus_set and s not in focus_set:
+        if combined_focus and s not in combined_focus:
             continue
         filtered.append(s)
     return filtered
@@ -239,13 +259,15 @@ def run(args):
 
     target_samples = args.samples.split(',') if args.samples else None
     focus_samples = args.focus.split(',') if args.focus else None
+    target_focus_samples = getattr(args, 'target_focus', None)
+    target_focus_samples = target_focus_samples.split(',') if target_focus_samples else None
 
     # Parse sample pairs
-    all_pairs = parse_valid_pairs(df.columns, 'patristic', target_samples, focus_samples)
+    all_pairs = parse_valid_pairs(df.columns, 'patristic', target_samples, focus_samples, target_focus_samples)
     pair_color_map = build_color_map(all_pairs)
     # Parse individual samples
     all_samples = parse_samples_from_columns(df.columns)
-    active_samples = filter_samples(all_samples, target_samples, focus_samples)
+    active_samples = filter_samples(all_samples, target_samples, focus_samples, target_focus_samples)
     sample_color_map = build_color_map(active_samples)
 
     chromosomes = df['Chromosome'].unique()

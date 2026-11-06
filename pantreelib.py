@@ -249,3 +249,111 @@ def process_window_task(args):
         result[f"{s1}-{s2}_patristic"] = round(d, 6)
 
     return result
+
+
+def process_local_window_task(args):
+    """
+    Worker task to process a single window for the 'local' module.
+    args: tuple (vcf_path, chrom, start, end, target_samples, include_ref)
+
+    Returns a list of dicts with keys:
+      Chromosome, Window_start, Window_end, Total_variants, Called_variants, Group, Count
+    """
+    vcf_path, chrom, start, end, target_samples, include_ref = args
+
+    vcf = pysam.VariantFile(vcf_path)
+    all_vcf_samples = list(vcf.header.samples)
+
+    if target_samples:
+        samples = [s for s in all_vcf_samples if s in target_samples]
+    else:
+        samples = all_vcf_samples
+
+    active_samples = ["REF"] + samples if include_ref else samples
+
+    # Fetch variant records
+    try:
+        records = list(vcf.fetch(contig=chrom, start=start - 1, stop=end))
+    except ValueError:
+        records = []
+    vcf.close()
+
+    total_variants = 0
+    # Store parsed called genotypes per site: list of dicts {sample: allele_index}
+    site_gts_list = []
+
+    for variant in records:
+        ref = variant.ref
+        alts = list(variant.alts or [])
+        if not alts:
+            continue
+
+        # Expect supplied variants are SNPs (len(ref) == 1 and all len(alts) == 1)
+        if len(ref) != 1 or any(len(a) != 1 for a in alts):
+            continue
+
+        total_variants += 1
+
+        gts = parse_sample_genotypes(variant, samples)
+        if include_ref:
+            gts["REF"] = 0
+
+        site_gts_list.append(gts)
+
+    if total_variants == 0:
+        return []
+
+    # Count polarized groupings across all sites in this window
+    # group_key is a tuple of sample names in active_samples order
+    group_counts = {}
+
+    for gts in site_gts_list:
+        # Non-missing samples at this site
+        called_samples = [s for s in active_samples if gts.get(s) is not None]
+        if not called_samples:
+            continue
+
+        # Map allele -> list of samples carrying that allele
+        allele_to_samples = {}
+        for s in called_samples:
+            allele = gts[s]
+            allele_to_samples.setdefault(allele, []).append(s)
+
+        # A grouping is formed if all samples in the grouping share an allele
+        # that is unique against all other non-missing evaluated samples at that site.
+        # This corresponds exactly to each distinct allele present at this site!
+        # If all samples share allele A, it forms a group of size N with that allele.
+        # If samples partition into alleles A and B, they form two groups.
+        for allele, grp in allele_to_samples.items():
+            # Group key keeps samples in active_samples order
+            grp_sorted = tuple(s for s in active_samples if s in grp)
+            group_counts[grp_sorted] = group_counts.get(grp_sorted, 0) + 1
+
+    # If no groupings have Count > 0, return empty list
+    if not group_counts:
+        return []
+
+    results = []
+    for grp_tuple, count in group_counts.items():
+        if count <= 0:
+            continue
+
+        grp_set = set(grp_tuple)
+        # Called_variants: number of sites in the window where all samples in the grouping had a called genotype
+        called_variants = 0
+        for gts in site_gts_list:
+            if all(gts.get(s) is not None for s in grp_set):
+                called_variants += 1
+
+        group_str = ",".join(grp_tuple)
+        results.append({
+            "Chromosome": chrom,
+            "Window_start": start,
+            "Window_end": end,
+            "Total_variants": total_variants,
+            "Called_variants": called_variants,
+            "Group": group_str,
+            "Count": count
+        })
+
+    return results
