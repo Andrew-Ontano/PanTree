@@ -186,6 +186,11 @@ PanTree includes experimental and diagnostic utilities in `utils/` alongside leg
   ```bash
   python3 utils/cactus_stats_compare.py graphA_stats.tsv "Graph A" graphB_stats.tsv "Graph B"
   ```
+* **`utils/nearest_outgroup_summary.py`**:
+  Summarizes how frequently selected samples are closest to each non-selected sample (outgroup) across genomic windows using distance metrics from `pantree.py calculate`. Outputs a tabulated summary TSV (per-chromosome and whole-pangenome scopes) and a grouped stacked barplot figure.
+  ```bash
+  python3 utils/nearest_outgroup_summary.py -i results.tsv -s SampleA,SampleB -o summary.tsv -p summary_plot.png -m manhattan
+  ```
 * **`utils/mosdepth_coverage_plot.py`**:
   Computes rolling mean smoothed read depth profiles across chromosomes using binned BED output from `mosdepth`.
   ```bash
