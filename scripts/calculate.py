@@ -75,14 +75,12 @@ def run(args):
     # Define header columns
     header = [
         "Chromosome", "Window_start", "Window_end",
-        "Total_variants", "Total_SNPs", "Total_MNPs", "Total_INDELs",
-        "Total_bp", "Tree_newick"
+        "Total_variants", "Tree_newick"
     ]
 
     for s in active_samples:
         header.extend([
-            f"{s}_called_sites", f"{s}_snps", f"{s}_mnps", f"{s}_indels",
-            f"{s}_bp", f"{s}_unique_alleles"
+            f"{s}_called_sites", f"{s}_unique_alleles"
         ])
 
     pairs = list(itertools.combinations(active_samples, 2))

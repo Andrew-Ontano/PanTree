@@ -40,13 +40,15 @@ class TestPantreeCalculate(unittest.TestCase):
 
         self.assertEqual(result["Chromosome"], "chr1")
         self.assertEqual(result["Total_variants"], 4)
-        self.assertEqual(result["Total_SNPs"], 4)
-        self.assertEqual(result["Total_MNPs"], 0)
-        self.assertEqual(result["Total_INDELs"], 0)
-        self.assertEqual(result["Total_bp"], 4)
+        self.assertNotIn("Total_SNPs", result)
+        self.assertNotIn("Total_MNPs", result)
+        self.assertNotIn("Total_INDELs", result)
+        self.assertNotIn("Total_bp", result)
         self.assertEqual(result["SAMPLE1_called_sites"], 3)
         self.assertEqual(result["SAMPLE2_called_sites"], 4)
         self.assertEqual(result["SAMPLE3_called_sites"], 4)
+        self.assertNotIn("SAMPLE1_snps", result)
+        self.assertNotIn("SAMPLE1_bp", result)
 
     def test_calculate_run_integration(self):
         out_tsv = os.path.join(self.temp_dir.name, "out.tsv")
@@ -70,9 +72,14 @@ class TestPantreeCalculate(unittest.TestCase):
 
         header = lines[0]
         self.assertIn("Chromosome", header)
+        self.assertIn("Total_variants", header)
+        self.assertNotIn("Total_SNPs", header)
+        self.assertNotIn("Total_bp", header)
         self.assertIn("REF_called_sites", header)
         self.assertIn("SAMPLE1_called_sites", header)
         self.assertIn("SAMPLE2_called_sites", header)
+        self.assertNotIn("SAMPLE1_snps", header)
+        self.assertNotIn("SAMPLE1_bp", header)
         self.assertNotIn("SAMPLE3_called_sites", header)  # SAMPLE3 excluded via -s
 
 
