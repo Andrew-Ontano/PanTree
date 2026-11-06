@@ -122,11 +122,14 @@ def calculate_nearest_outgroup_summary(df, selected_samples, non_selected_sample
     return summary_df
 
 
-def plot_grouped_stacked_bar(summary_df, measure, selected_samples, non_selected_samples, output_plot, value_col="Total_windows_closest"):
+def plot_grouped_stacked_bar(summary_df, measure, selected_samples, non_selected_samples, output_plot,
+                            value_col="Total_windows_closest", facet_cols=None):
     """
     Creates a grouped barplot of stacked barplots.
-    - Each group on the x-axis represents a chromosome (excluding 'PANGENOME').
-    - Each bar within a group represents a selected sample.
+    - If facet_cols is specified (or > 0), creates subplots faceted by chromosome with facet_cols per row.
+      In each facet, each bar represents a selected in-group sample.
+    - Otherwise, creates a single grouped bar plot where each group represents a chromosome and each
+      bar inside represents a selected in-group sample, with sample names labeled on ticks.
     - Stacked segments represent totals where the selected sample was closest to each non-selected sample.
     """
     chrom_df = summary_df[(summary_df['Scope'] != 'PANGENOME') & (summary_df['Measure'] == measure)]
@@ -138,63 +141,128 @@ def plot_grouped_stacked_bar(summary_df, measure, selected_samples, non_selected
     num_chroms = len(chromosomes)
     num_samples = len(selected_samples)
 
-    fig, ax = plt.subplots(figsize=(max(10, num_chroms * max(2.5, num_samples * 0.8)), 6))
-
     # Color mapping for non-selected samples (outgroups)
     cmap = plt.get_cmap('tab10' if len(non_selected_samples) <= 10 else 'tab20')
     outgroup_colors = {og: cmap(i % 20) for i, og in enumerate(non_selected_samples)}
-
-    # Bar positions
-    group_width = 0.8
-    bar_width = group_width / max(num_samples, 1)
-    indices = np.arange(num_chroms)
-
     legend_handles = {}
 
-    for sample_idx, sample in enumerate(selected_samples):
-        # Calculate x offsets for each selected sample within each chromosome group
-        x_offsets = indices - (group_width / 2) + (sample_idx + 0.5) * bar_width
-
-        # Track bottom offset for stacked bars
-        bottoms = np.zeros(num_chroms)
-
-        for og in non_selected_samples:
-            vals = []
-            for chrom in chromosomes:
-                sub = chrom_df[(chrom_df['Scope'] == chrom) &
-                               (chrom_df['Sample'] == sample) &
-                               (chrom_df['Outgroup'] == og)]
-                val = sub[value_col].sum() if not sub.empty else 0.0
-                vals.append(val)
-            vals = np.array(vals)
-
-            color = outgroup_colors[og]
-            bars = ax.bar(x_offsets, vals, bar_width, bottom=bottoms,
-                          color=color, edgecolor='white', linewidth=0.5,
-                          label=og if og not in legend_handles else "")
-            if og not in legend_handles:
-                legend_handles[og] = bars[0]
-            bottoms += vals
-
-    # Format Axes
-    ax.set_xticks(indices)
-    ax.set_xticklabels(chromosomes, rotation=45, ha='right', fontsize=10, fontweight='bold')
-    ax.set_xlabel("Chromosome", fontsize=11, fontweight='bold')
-
     val_label = "Total Windows" if "windows" in value_col.lower() else "Total Variants"
-    ax.set_ylabel(f"{val_label} Closest to Outgroup", fontsize=11, fontweight='bold')
-    ax.set_title(f"Nearest Outgroup Breakdown by Chromosome ({measure.capitalize()} Distance)", fontsize=13, fontweight='bold')
 
-    # Add sample labels below or above bars if multiple samples
-    if num_samples > 1:
-        # Custom secondary labels under x ticks or annotations
-        sample_patches = [plt.Line2D([0], [0], color='none') for _ in selected_samples]
-        # Or add a legend with outgroup colors
-        pass
+    if facet_cols and facet_cols > 0:
+        n_cols = int(facet_cols)
+        n_rows = int(np.ceil(num_chroms / n_cols))
 
-    # Unique legend for outgroups
-    ax.legend(legend_handles.values(), legend_handles.keys(), title="Outgroup",
-              bbox_to_anchor=(1.02, 1), loc='upper left', frameon=True)
+        fig, axes = plt.subplots(
+            n_rows, n_cols,
+            figsize=(max(5 * n_cols, 8), max(4 * n_rows, 5)),
+            squeeze=False,
+            sharey=False
+        )
+
+        for i, chrom in enumerate(chromosomes):
+            r = i // n_cols
+            c = i % n_cols
+            ax = axes[r][c]
+
+            indices = np.arange(num_samples)
+            bar_width = 0.6
+            bottoms = np.zeros(num_samples)
+
+            for og in non_selected_samples:
+                vals = []
+                for sample in selected_samples:
+                    sub = chrom_df[(chrom_df['Scope'] == chrom) &
+                                   (chrom_df['Sample'] == sample) &
+                                   (chrom_df['Outgroup'] == og)]
+                    val = sub[value_col].sum() if not sub.empty else 0.0
+                    vals.append(val)
+                vals = np.array(vals)
+
+                color = outgroup_colors[og]
+                bars = ax.bar(indices, vals, bar_width, bottom=bottoms,
+                              color=color, edgecolor='white', linewidth=0.5,
+                              label=og if og not in legend_handles else "")
+                if og not in legend_handles:
+                    legend_handles[og] = bars[0]
+                bottoms += vals
+
+            ax.set_xticks(indices)
+            ax.set_xticklabels(selected_samples, rotation=45, ha='right', fontsize=9)
+            ax.set_title(chrom, fontsize=11, fontweight='bold')
+            ax.set_xlabel("Ingroup Sample", fontsize=9)
+            if c == 0:
+                ax.set_ylabel(f"{val_label} Closest", fontsize=9, fontweight='bold')
+            ax.grid(True, linestyle='--', alpha=0.3, axis='y')
+
+        # Hide any unused subplots
+        for j in range(num_chroms, n_rows * n_cols):
+            r = j // n_cols
+            c = j % n_cols
+            axes[r][c].axis('off')
+
+        # Figure title & shared legend
+        fig.suptitle(f"Nearest Outgroup Breakdown by Chromosome ({measure.capitalize()} Distance)",
+                     fontsize=13, fontweight='bold', y=0.99)
+        fig.legend(legend_handles.values(), legend_handles.keys(), title="Outgroup",
+                   bbox_to_anchor=(1.01, 0.9), loc='upper left', frameon=True)
+
+    else:
+        # Non-faceted grouped barplot
+        fig, ax = plt.subplots(figsize=(max(10, num_chroms * max(2.5, num_samples * 0.9)), 6))
+
+        group_width = 0.8
+        bar_width = group_width / max(num_samples, 1)
+        indices = np.arange(num_chroms)
+
+        # Record x positions and labels for dual tick labeling (samples and chroms)
+        sample_x_positions = []
+        sample_x_labels = []
+
+        for sample_idx, sample in enumerate(selected_samples):
+            x_offsets = indices - (group_width / 2) + (sample_idx + 0.5) * bar_width
+            bottoms = np.zeros(num_chroms)
+
+            for i_c, x_pos in enumerate(x_offsets):
+                sample_x_positions.append(x_pos)
+                sample_x_labels.append(sample)
+
+            for og in non_selected_samples:
+                vals = []
+                for chrom in chromosomes:
+                    sub = chrom_df[(chrom_df['Scope'] == chrom) &
+                                   (chrom_df['Sample'] == sample) &
+                                   (chrom_df['Outgroup'] == og)]
+                    val = sub[value_col].sum() if not sub.empty else 0.0
+                    vals.append(val)
+                vals = np.array(vals)
+
+                color = outgroup_colors[og]
+                bars = ax.bar(x_offsets, vals, bar_width, bottom=bottoms,
+                              color=color, edgecolor='white', linewidth=0.5,
+                              label=og if og not in legend_handles else "")
+                if og not in legend_handles:
+                    legend_handles[og] = bars[0]
+                bottoms += vals
+
+        # Set chromosome group labels
+        ax.set_xticks(indices)
+        ax.set_xticklabels(chromosomes, fontsize=11, fontweight='bold')
+        ax.tick_params(axis='x', pad=25)
+        ax.set_xlabel("Chromosome", fontsize=12, fontweight='bold', labelpad=15)
+
+        # Add sample labels below each bar
+        sorted_pairs = sorted(zip(sample_x_positions, sample_x_labels), key=lambda p: p[0])
+        for x_pos, s_label in sorted_pairs:
+            ax.text(x_pos, -0.02 * ax.get_ylim()[1], s_label, ha='center', va='top',
+                    fontsize=8, rotation=45, color='dimgray')
+
+        ax.set_ylabel(f"{val_label} Closest to Outgroup", fontsize=11, fontweight='bold')
+        ax.set_title(f"Nearest Outgroup Breakdown by Chromosome ({measure.capitalize()} Distance)",
+                     fontsize=13, fontweight='bold')
+
+        ax.legend(legend_handles.values(), legend_handles.keys(), title="Outgroup",
+                  bbox_to_anchor=(1.02, 1), loc='upper left', frameon=True)
+        ax.grid(True, linestyle='--', alpha=0.3, axis='y')
 
     plt.tight_layout()
     os.makedirs(os.path.dirname(os.path.abspath(output_plot)), exist_ok=True)
@@ -215,6 +283,10 @@ def main():
         "-m", "--measure", dest="measure", default="manhattan",
         choices=["manhattan", "patristic", "jaccard"],
         help="Distance metric to use for the plot (default: manhattan)"
+    )
+    parser.add_argument(
+        "-x", "--facet-cols", dest="facet_cols", type=int, default=None,
+        help="Enforce faceting of chromosomes into subplots with N columns per row"
     )
     parser.add_argument("-v", "--verbose", dest="verbose", action="store_true", help="Verbose logging")
 
@@ -267,7 +339,8 @@ def main():
         if plot_measure not in available_measures:
             logging.warning(f"Requested plot measure '{plot_measure}' not found in TSV. Using '{available_measures[0]}'.")
             plot_measure = available_measures[0]
-        plot_grouped_stacked_bar(summary_df, plot_measure, selected_samples, non_selected_samples, args.output_plot)
+        plot_grouped_stacked_bar(summary_df, plot_measure, selected_samples, non_selected_samples, args.output_plot,
+                                 facet_cols=args.facet_cols)
 
 
 if __name__ == "__main__":

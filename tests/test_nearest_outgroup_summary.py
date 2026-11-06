@@ -94,9 +94,16 @@ class TestNearestOutgroupSummary(unittest.TestCase):
         summary = calculate_nearest_outgroup_summary(self.df, selected, non_selected, measures)
         plot_path = os.path.join(self.temp_dir.name, "test_plot.png")
 
+        # Test unfaceted grouped barplot
         plot_grouped_stacked_bar(summary, "manhattan", selected, non_selected, plot_path)
         self.assertTrue(os.path.exists(plot_path))
         self.assertGreater(os.path.getsize(plot_path), 0)
+
+        # Test faceted subplots with -x 2
+        faceted_plot_path = os.path.join(self.temp_dir.name, "test_faceted_plot.png")
+        plot_grouped_stacked_bar(summary, "manhattan", selected, non_selected, faceted_plot_path, facet_cols=2)
+        self.assertTrue(os.path.exists(faceted_plot_path))
+        self.assertGreater(os.path.getsize(faceted_plot_path), 0)
 
 
 if __name__ == "__main__":
