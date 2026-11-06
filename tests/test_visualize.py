@@ -89,6 +89,62 @@ class TestPantreeVisualize(unittest.TestCase):
         for expected in expected_files:
             self.assertIn(expected, files)
 
+    def test_parse_valid_pairs_with_target_focus(self):
+        columns = [
+            "SAMPLE1-SAMPLE2_patristic",
+            "SAMPLE1-SAMPLE3_patristic",
+            "SAMPLE2-SAMPLE3_patristic",
+            "REF-SAMPLE1_patristic",
+            "REF-SAMPLE2_patristic",
+            "REF-SAMPLE3_patristic"
+        ]
+
+        # Normal -S behavior: at least one in focus
+        pairs_s = visualize.parse_valid_pairs(columns, "patristic", focus_samples=["SAMPLE1"])
+        self.assertEqual(set(pairs_s), {"SAMPLE1-SAMPLE2", "SAMPLE1-SAMPLE3", "REF-SAMPLE1"})
+
+        # New -S with -T behavior: between focus (-S) and target_focus (-T)
+        pairs_st = visualize.parse_valid_pairs(
+            columns, "patristic",
+            focus_samples=["SAMPLE1"],
+            target_focus_samples=["SAMPLE2", "SAMPLE3"]
+        )
+        self.assertEqual(set(pairs_st), {"SAMPLE1-SAMPLE2", "SAMPLE1-SAMPLE3"})
+        self.assertNotIn("SAMPLE2-SAMPLE3", pairs_st)
+        self.assertNotIn("REF-SAMPLE1", pairs_st)
+
+        # Multi-sample in -S and -T
+        pairs_st2 = visualize.parse_valid_pairs(
+            columns, "patristic",
+            focus_samples=["SAMPLE1", "REF"],
+            target_focus_samples=["SAMPLE2", "SAMPLE3"]
+        )
+        self.assertEqual(
+            set(pairs_st2),
+            {"SAMPLE1-SAMPLE2", "SAMPLE1-SAMPLE3", "REF-SAMPLE2", "REF-SAMPLE3"}
+        )
+        self.assertNotIn("REF-SAMPLE1", pairs_st2)
+        self.assertNotIn("SAMPLE2-SAMPLE3", pairs_st2)
+
+    def test_visualize_run_with_target_focus(self):
+        plots_st_dir = os.path.join(self.temp_dir.name, "plots_st")
+
+        class VisSTArgs:
+            input_tsv = self.tsv_path
+            outdir = plots_st_dir
+            samples = None
+            focus = "SAMPLE1"
+            target_focus = "SAMPLE2,SAMPLE3"
+            frac = 0.1
+            format = "png"
+            key = True
+            verbose = False
+
+        visualize.run(VisSTArgs())
+        self.assertTrue(os.path.exists(plots_st_dir))
+        files = os.listdir(plots_st_dir)
+        self.assertIn("chr1_manhattan_density_variants.png", files)
+
 
 if __name__ == "__main__":
     unittest.main()

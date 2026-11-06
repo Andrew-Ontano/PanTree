@@ -48,6 +48,7 @@ def main():
     parser_vis.add_argument("-o", "--output-dir", dest="outdir", default="plots", help="Output directory for plots")
     parser_vis.add_argument("-s", "--samples", dest="samples", help="Comma-separated pool of samples. Only pairs between these samples are plotted (both must match).")
     parser_vis.add_argument("-S", "--focus-samples", dest="focus", help="Comma-separated focus samples. Only pairs containing at least one are plotted.")
+    parser_vis.add_argument("-T", "--target-focus-samples", dest="target_focus", help="Second comma-separated focus sample list. When provided with -S, only pairs between -S and -T are plotted.")
     parser_vis.add_argument("-f", "--frac", dest="frac", type=float, default=0.1, help="LOESS smoothing fraction (0.0 to 1.0, default: 0.1)")
     parser_vis.add_argument("--format", dest="format", default="png", choices=["png", "pdf", "svg"], help="Output image format (png, pdf, svg)")
     parser_vis.add_argument("-k", "--no-key", dest="key", action="store_false", default=True, help="Omit comparison distances key")
